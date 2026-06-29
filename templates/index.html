@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text to Speech TTS</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f5; display: flex; flex-direction: column; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { background: white; border-radius: 16px; padding: 40px; width: 520px; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+        h1 { font-size: 24px; margin-bottom: 8px; color: #1a1a1a; }
+        .subtitle { color: #666; margin-bottom: 24px; font-size: 14px; }
+        .drop-zone { border: 2px dashed #ccc; border-radius: 12px; padding: 40px 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
+        .drop-zone:hover, .drop-zone.dragover { border-color: #2563eb; background: #f0f4ff; }
+        .drop-zone.has-file { border-color: #22c55e; background: #f0fdf4; }
+        .drop-zone svg { width: 48px; height: 48px; color: #999; margin-bottom: 12px; }
+        .drop-zone .hint { color: #888; margin-bottom: 0; font-size: 14px; }
+        .drop-zone .filename { color: #22c55e; font-weight: 600; margin-top: 8px; font-size: 14px; }
+        .file-size { color: #999; font-size: 12px; margin-top: 4px; }
+        button { width: 100%; padding: 14px; background: #2563eb; color: white; border: none; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; margin-top: 16px; transition: background 0.2s; }
+        button:hover { background: #1d4ed8; }
+        button:disabled { background: #93c5fd; cursor: not-allowed; }
+        .progress-section { margin-top: 24px; }
+        .progress-bar { width: 100%; height: 8px; background: #e5e7eb; border-radius: 4px; overflow: hidden; }
+        .progress-fill { height: 100%; background: #2563eb; border-radius: 4px; transition: width 0.3s; width: 0%; }
+        .progress-text { font-size: 13px; color: #666; margin-top: 8px; text-align: center; }
+        .download-section { margin-top: 24px; text-align: center; }
+        .download-btn { background: #22c55e; }
+        .download-btn:hover { background: #16a34a; }
+        .error { color: #ef4444; font-size: 14px; margin-top: 8px; text-align: center; }
+        input[type="file"] { display: none; }
+        .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #999; opacity: 0.7; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Text to Audio</h1>
+        <p class="subtitle">Select a <b>.txt</b> file and convert it to speech with Edge-TTS</p>
+
+        <div class="drop-zone" id="dropZone">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 16V4m0 0L8 8m4-4l4 4M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2" />
+            </svg>
+            <p class="hint">Drag a .txt here or <strong>choose a file</strong></p>
+            <p id="fileName" class="filename" style="display:none;"></p>
+            <p id="fileSize" class="file-size" style="display:none;"></p>
+        </div>
+        <input type="file" id="fileInput" accept=".txt">
+
+        <button id="generateBtn" disabled>Generate Audio</button>
+
+        <div class="progress-section" id="progressSection" style="display:none;">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill"></div>
+            </div>
+            <div class="progress-text" id="progressText">Starting...</div>
+        </div>
+
+        <div class="download-section" id="downloadSection" style="display:none;">
+            <button class="download-btn" id="downloadBtn">Download MP3</button>
+        </div>
+
+        <div id="errorSection" class="error" style="display:none;"></div>
+    </div>
+
+    <div class="footer">Built by: pgonzalezs1999</div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const fileName = document.getElementById('fileName');
+        const fileSize = document.getElementById('fileSize');
+        const generateBtn = document.getElementById('generateBtn');
+        const progressSection = document.getElementById('progressSection');
+        const progressFill = document.getElementById('progressFill');
+        const progressText = document.getElementById('progressText');
+        const downloadSection = document.getElementById('downloadSection');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const errorSection = document.getElementById('errorSection');
+
+        let selectedFile = null;
+        let taskId = null;
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) handleFile(fileInput.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file.name.endsWith('.txt')) {
+                showError('Only .txt files are accepted');
+                return;
+            }
+            selectedFile = file;
+            dropZone.classList.add('has-file');
+            fileName.textContent = file.name;
+            fileName.style.display = 'block';
+            const sizeKB = (file.size / 1024).toFixed(1);
+            fileSize.textContent = `${sizeKB} KB`;
+            fileSize.style.display = 'block';
+            generateBtn.style.display = 'block';
+            generateBtn.disabled = false;
+            progressSection.style.display = 'none';
+            downloadSection.style.display = 'none';
+            errorSection.style.display = 'none';
+        }
+
+        generateBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            generateBtn.style.display = 'none';
+            progressSection.style.display = 'block';
+            downloadSection.style.display = 'none';
+            errorSection.style.display = 'none';
+            progressFill.style.width = '0%';
+            progressText.textContent = 'Uploading file...';
+
+            const formData = new FormData();
+            formData.append('file', selectedFile);
+
+            try {
+                const res = await fetch('/upload', { method: 'POST', body: formData });
+                const data = await res.json();
+                if (data.error) { showError(data.error); return; }
+
+                taskId = data.task_id;
+                pollProgress(taskId);
+            } catch (err) {
+                showError('Error uploading file: ' + err.message);
+            }
+        });
+
+        async function pollProgress(id) {
+            try {
+                const res = await fetch(`/progress/${id}`);
+                const data = await res.json();
+
+                if (data.error) { showError(data.error); return; }
+
+                if (data.progress !== undefined) {
+                    var pct = Number(data.progress).toFixed(2);
+                    progressFill.style.width = pct + '%';
+                    if (data.progress < 80) {
+                        progressText.textContent = `Generating audio... ${pct}%`;
+                    } else if (data.progress < 100) {
+                        progressText.textContent = 'Merging audio chunks...';
+                    }
+                }
+
+                if (data.status === 'completed') {
+                    progressText.textContent = 'Completed!';
+                    progressFill.style.width = '100%';
+                    downloadBtn.onclick = () => window.location.href = `/download/${id}`;
+                    downloadSection.style.display = 'block';
+                    generateBtn.disabled = false;
+                } else if (data.status === 'error') {
+                    showError(data.error || 'Unknown error during processing');
+                    generateBtn.disabled = false;
+                } else {
+                    setTimeout(() => pollProgress(id), 1000);
+                }
+            } catch (err) {
+                setTimeout(() => pollProgress(id), 2000);
+            }
+        }
+
+        function showError(msg) {
+            errorSection.textContent = msg;
+            errorSection.style.display = 'block';
+            progressSection.style.display = 'none';
+            generateBtn.style.display = 'block';
+            generateBtn.disabled = false;
+        }
+    </script>
+</body>
+</html>
