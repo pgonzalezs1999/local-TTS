@@ -7,7 +7,7 @@ Convert `.txt` files to speech using Microsoft **Edge-TTS**. A simple and elegan
 ## 📋 Prerequisites
 
 | Tool | Version |
-|---|---|---|
+|---|---|
 | [Python](https://www.python.org/downloads/) | 3.8 or higher |
 | [pip](https://pip.pypa.io/en/stable/) | — |
 | [ffmpeg](https://ffmpeg.org/download.html) | Any |
